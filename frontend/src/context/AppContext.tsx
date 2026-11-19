@@ -25,6 +25,21 @@ interface AppContextType {
   addApplication: (app: Application) => void;
   addInterview: (interview: Omit<Interview, 'id'>) => void;
   updateInterviewRating: (interviewId: string, rating: number, feedback: string) => void;
+  updateInterviewStatus: (interviewId: string, status: InterviewStatus) => void;
+  submitInterviewFeedback: (
+    interviewId: string,
+    feedback: {
+      rating: number;
+      overallRecommendation: string;
+      technicalScore?: number;
+      communicationScore?: number;
+      problemSolvingScore?: number;
+      culturalFitScore?: number;
+      strengths?: string;
+      concerns?: string;
+      detailedFeedback: string;
+    }
+  ) => void;
   systemSettings: {
     geminiModel: string;
     autoScreenResumes: boolean;
@@ -173,13 +188,132 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `int-${Date.now()}`
     }
     setInterviews(prev => [newInterview, ...prev])
-    updateApplicationStatus(interviewData.applicationId, 'INTERVIEW', `Scheduled ${interviewData.round}`)
+    updateApplicationStatus(interviewData.applicationId, 'INTERVIEW_SCHEDULED', `Scheduled ${interviewData.round}`)
+
+    setAuditLogs(prev => [
+      {
+        id: `log-${Date.now()}`,
+        action: `Interview round scheduled: ${interviewData.round}`,
+        actorName: user.name,
+        target: `${interviewData.candidateName} (${interviewData.jobTitle})`,
+        timestamp: 'Just now',
+        type: 'SUCCESS'
+      },
+      ...prev
+    ])
+
+    // Background sync to backend
+    try {
+      fetch('/api/v1/interviews/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          application_id: interviewData.applicationId,
+          interviewer_name: interviewData.interviewerName,
+          interview_round: interviewData.round,
+          scheduled_at: new Date(`${interviewData.date}T10:00:00Z`).toISOString(),
+          duration_minutes: interviewData.durationMinutes || 60,
+          meeting_link: interviewData.meetingLink,
+          notes: interviewData.notes
+        })
+      }).catch(() => {})
+    } catch {
+      // Ignored for offline/demo resilience
+    }
   }
 
   const updateInterviewRating = (interviewId: string, rating: number, feedback: string) => {
     setInterviews(prev =>
       prev.map(i => (i.id === interviewId ? { ...i, rating, feedback, status: 'COMPLETED' } : i))
     )
+  }
+
+  const updateInterviewStatus = (interviewId: string, status: InterviewStatus) => {
+    setInterviews(prev =>
+      prev.map(i => (i.id === interviewId ? { ...i, status } : i))
+    )
+    const target = interviews.find(i => i.id === interviewId)
+    if (target) {
+      setAuditLogs(prev => [
+        {
+          id: `log-${Date.now()}`,
+          action: `Interview status marked as ${status}`,
+          actorName: user.name,
+          target: `${target.candidateName} - ${target.round}`,
+          timestamp: 'Just now',
+          type: status === 'COMPLETED' ? 'SUCCESS' : status === 'CANCELLED' ? 'WARNING' : 'INFO'
+        },
+        ...prev
+      ])
+    }
+  }
+
+  const submitInterviewFeedback = (
+    interviewId: string,
+    feedbackData: {
+      rating: number;
+      overallRecommendation: string;
+      technicalScore?: number;
+      communicationScore?: number;
+      problemSolvingScore?: number;
+      culturalFitScore?: number;
+      strengths?: string;
+      concerns?: string;
+      detailedFeedback: string;
+    }
+  ) => {
+    setInterviews(prev =>
+      prev.map(i => {
+        if (i.id === interviewId) {
+          return {
+            ...i,
+            status: 'COMPLETED',
+            rating: feedbackData.rating,
+            overallRecommendation: feedbackData.overallRecommendation,
+            feedback: feedbackData.detailedFeedback,
+            strengthsNoted: feedbackData.strengths,
+            concernsNoted: feedbackData.concerns,
+            criteriaRatings: {
+              technicalCompetence: feedbackData.technicalScore || 4,
+              problemSolving: feedbackData.problemSolvingScore || 4,
+              communication: feedbackData.communicationScore || 4,
+              culturalFit: feedbackData.culturalFitScore || 4
+            }
+          }
+        }
+        return i
+      })
+    )
+
+    const target = interviews.find(i => i.id === interviewId)
+    if (target) {
+      updateApplicationStatus(
+        target.applicationId,
+        'INTERVIEW_COMPLETED',
+        `Scorecard submitted: ${feedbackData.rating}★ (${feedbackData.overallRecommendation})`
+      )
+    }
+
+    // Sync to backend
+    try {
+      fetch(`/api/v1/interviews/${interviewId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          overall_recommendation: feedbackData.overallRecommendation,
+          rating: feedbackData.rating,
+          technical_score: feedbackData.technicalScore,
+          communication_score: feedbackData.communicationScore,
+          problem_solving_score: feedbackData.problemSolvingScore,
+          cultural_fit_score: feedbackData.culturalFitScore,
+          strengths_noted: feedbackData.strengths,
+          concerns_noted: feedbackData.concerns,
+          detailed_feedback: feedbackData.detailedFeedback
+        })
+      }).catch(() => {})
+    } catch {
+      // Ignored for offline/demo resilience
+    }
   }
 
   const updateSystemSettings = (newSettings: Partial<AppContextType['systemSettings']>) => {
@@ -204,6 +338,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addApplication,
         addInterview,
         updateInterviewRating,
+        updateInterviewStatus,
+        submitInterviewFeedback,
         systemSettings,
         updateSystemSettings
       }}

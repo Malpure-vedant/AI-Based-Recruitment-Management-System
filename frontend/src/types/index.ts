@@ -121,25 +121,33 @@ export interface Application {
 }
 
 export type InterviewRound = 'Phone Screening' | 'Technical Round 1' | 'System Design' | 'Cultural Fit' | 'Final Executive';
-export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type InterviewStatus = 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 export interface Interview {
   id: string;
   applicationId: string;
+  candidateId?: string;
   candidateName: string;
   candidateEmail: string;
   candidateAvatar: string;
   jobTitle: string;
   interviewerName: string;
-  interviewerAvatar: string;
-  round: InterviewRound;
+  interviewerAvatar?: string;
+  interviewerId?: string;
+  round: InterviewRound | string;
   date: string;
   time: string;
   durationMinutes: number;
   meetingLink: string;
+  meetingPlatform?: string;
+  location?: string;
+  notes?: string;
   status: InterviewStatus;
   rating?: number;
+  overallRecommendation?: string;
   feedback?: string;
+  strengthsNoted?: string;
+  concernsNoted?: string;
   criteriaRatings?: {
     technicalCompetence: number;
     problemSolving: number;
