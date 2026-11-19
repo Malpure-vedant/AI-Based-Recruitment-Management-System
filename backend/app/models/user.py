@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
@@ -11,11 +11,26 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(150), nullable=False)
-    role = Column(String(50), default="RECRUITER", nullable=False)  # SUPER_ADMIN, RECRUITER, INTERVIEWER, CANDIDATE
-    department = Column(String(100), default="Talent Acquisition")
-    title = Column(String(150), default="Recruiter")
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    role = Column(String(50), default="RECRUITER", nullable=False, index=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
 
-    jobs = relationship("Job", back_populates="created_by")
+    # Relationships
+    recruiter_profile = relationship("Recruiter", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    candidate_profile = relationship("Candidate", back_populates="user", uselist=False)
+    interviews_conducted = relationship("Interview", back_populates="interviewer")
+    feedbacks_given = relationship("InterviewFeedback", back_populates="interviewer")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('SUPER_ADMIN', 'RECRUITER', 'INTERVIEWER', 'CANDIDATE')",
+            name="check_user_valid_role"
+        ),
+    )

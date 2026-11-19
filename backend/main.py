@@ -1,3 +1,7 @@
+"""
+TalentPulse AI — Backend Entrypoint
+FastAPI ASGI application with lifespan event handler for DB init & seeding.
+"""
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
@@ -7,93 +11,127 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
 from app.core.security import get_password_hash
-from app.models.user import User
-from app.models.job import Job
-from app.models.candidate import Candidate
-from app.models.application import Application
+
+# Import all models so Base.metadata is fully populated before create_all()
+import app.models  # noqa: F401 — registers all 10 ORM models
+
+from app.models.user      import User
+from app.models.recruiter import Recruiter
+from app.models.job       import Job
+
 from app.api.v1.router import api_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rms_backend")
 
-def seed_initial_data():
-    """Initializes schema and seeds default administrative user and sample job if empty."""
+
+def seed_initial_data() -> None:
+    """Create all tables and seed a default admin + recruiter profile + sample job."""
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        # Check if default recruiter exists
-        admin = db.query(User).filter(User.email == "sarah.jenkins@hireai.enterprise").first()
+        # ── Seed default super-admin user ────────────────────────────────────
+        admin = db.query(User).filter(
+            User.email == "sarah.jenkins@hireai.enterprise"
+        ).first()
+
         if not admin:
             admin = User(
                 email="sarah.jenkins@hireai.enterprise",
                 hashed_password=get_password_hash("admin123"),
                 full_name="Sarah Jenkins",
                 role="SUPER_ADMIN",
-                department="Talent Acquisition",
-                title="Lead Talent Partner & AI Hiring Manager",
-                is_active=True
+                is_active=True,
             )
             db.add(admin)
+            db.flush()   # get admin.id without committing yet
+
+            # ── Seed recruiter profile linked to admin ───────────────────────
+            recruiter_profile = Recruiter(
+                user_id=admin.id,
+                department="Talent Acquisition",
+                title="Lead Talent Partner & AI Hiring Manager",
+                hiring_quota=20,
+            )
+            db.add(recruiter_profile)
             db.commit()
             db.refresh(admin)
-            logger.info("Default administrator seeded: sarah.jenkins@hireai.enterprise (password: admin123)")
+            logger.info(
+                "Default administrator seeded: sarah.jenkins@hireai.enterprise / admin123"
+            )
 
-        # Seed initial job if empty
+        # ── Seed sample job requisition ──────────────────────────────────────
         job_count = db.query(Job).count()
         if job_count == 0:
+            # Find recruiter profile to attach the job
+            recruiter = db.query(Recruiter).filter(
+                Recruiter.user_id == admin.id
+            ).first()
+
             job = Job(
                 title="Senior AI / Machine Learning Engineer",
                 department="Artificial Intelligence",
                 location="San Francisco, CA (Hybrid)",
                 job_type="Full-time",
                 experience_level="Senior",
-                salary_range="$165,000 - $210,000",
+                min_salary=165000,
+                max_salary=210000,
                 openings=2,
                 status="OPEN",
-                description="We are seeking an experienced AI/ML Engineer to architect, fine-tune, and deploy large language models and agentic workflow systems.",
+                description=(
+                    "We are seeking an experienced AI/ML Engineer to architect, "
+                    "fine-tune, and deploy large language models and agentic workflow systems."
+                ),
                 responsibilities=[
                     "Architect scalable inference pipelines using FastAPI, Triton, and vLLM",
-                    "Fine-tune state-of-the-art open models and integrate Gemini 1.5/2.0 API",
-                    "Optimize vector similarity search using PostgreSQL and vector databases"
+                    "Fine-tune open models and integrate Google Gemini API",
+                    "Optimize vector similarity search with PostgreSQL + pgvector",
                 ],
-                required_skills=["Python", "PyTorch", "FastAPI", "LLMs", "Vector Databases", "Docker"],
-                preferred_skills=["Kubernetes", "MLOps", "PostgreSQL"],
+                required_skills=["Python", "PyTorch", "FastAPI", "LLMs", "Docker"],
+                preferred_skills=["Kubernetes", "MLOps", "PostgreSQL", "Vector Databases"],
                 scoring_weights={
                     "skills": 0.40,
                     "experience": 0.35,
                     "education": 0.15,
-                    "domain": 0.10
+                    "domain": 0.10,
                 },
-                created_by_id=admin.id
+                recruiter_id=recruiter.id,
             )
             db.add(job)
             db.commit()
-            logger.info("Default job requisition seeded.")
-    except Exception as e:
-        logger.error(f"Error during initial data seeding: {e}")
+            logger.info("Sample job requisition seeded.")
+
+    except Exception as exc:
+        logger.error("Error during initial data seeding: %s", exc, exc_info=True)
+        db.rollback()
     finally:
         db.close()
 
+
+# ── Lifespan ─────────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize Database Tables
-    logger.info("Starting AI Recruitment Management System Backend...")
+    logger.info("Starting TalentPulse AI Backend…")
     seed_initial_data()
     yield
-    # Shutdown
-    logger.info("Shutting down AI Recruitment Management System Backend.")
+    logger.info("TalentPulse AI Backend shut down.")
 
+
+# ── Application ───────────────────────────────────────────────────────────────
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Enterprise AI-Powered Recruitment Management System (RMS) RESTful APIs with PyMuPDF resume parsing and Google Gemini scoring.",
+    description=(
+        "Enterprise AI-Powered Recruitment Management System REST APIs — "
+        "PyMuPDF resume parsing · Google Gemini AI scoring · JWT auth · RBAC"
+    ),
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# CORS Configuration
+# ── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
@@ -102,18 +140,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global Exception Handler
+
+# ── Global exception handler ──────────────────────────────────────────────────
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled Exception for request {request.method} {request.url}: {exc}", exc_info=True)
+    logger.error(
+        "Unhandled exception — %s %s: %s", request.method, request.url, exc, exc_info=True
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "An internal server error occurred. Please consult backend logs."}
+        content={"detail": "An internal server error occurred. Check backend logs."},
     )
 
-# Mount Modular v1 Router
+
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+
+# ── Health endpoints ──────────────────────────────────────────────────────────
 @app.get("/", tags=["Health"])
 def root():
     return {
@@ -121,17 +165,19 @@ def root():
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "docs_url": "/docs",
-        "api_v1": settings.API_V1_STR
+        "api_v1": settings.API_V1_STR,
     }
+
 
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
 
+
+# ── Dev entrypoint ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    import uvicorn
-    import sys
-    import os
+    import uvicorn, sys, os
+
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     if backend_dir not in sys.path:
         sys.path.insert(0, backend_dir)
