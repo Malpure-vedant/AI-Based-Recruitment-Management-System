@@ -2,6 +2,17 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
+class StatusHistoryResponse(BaseModel):
+    id: str
+    from_status: Optional[str] = None
+    to_status: str
+    changed_by_name: Optional[str] = None
+    reason: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class ApplicationApply(BaseModel):
     job_id: str
     first_name: str
@@ -14,8 +25,14 @@ class ApplicationApply(BaseModel):
     resume_file_name: Optional[str] = None
 
 class ApplicationUpdateStatus(BaseModel):
-    status: str = Field(..., pattern="^(APPLIED|SCREENING|SHORTLISTED|INTERVIEW|OFFERED|HIRED|REJECTED)$")
-    remarks: Optional[str] = None
+    status: str = Field(..., description="Target pipeline stage")
+    reason: Optional[str] = Field(None, description="Optional note or mandatory rejection reason")
+
+class ApplicationShortlistRequest(BaseModel):
+    notes: Optional[str] = Field(None, description="Optional shortlisting notes")
+
+class ApplicationRejectRequest(BaseModel):
+    reason: str = Field(..., min_length=2, description="Reason for rejecting candidate")
 
 class AIAnalysisResponse(BaseModel):
     match_score: float
@@ -40,8 +57,16 @@ class ApplicationResponse(BaseModel):
     candidate_name: Optional[str] = None
     candidate_email: Optional[str] = None
     candidate_avatar: Optional[str] = None
+    candidate_skills: Optional[List[str]] = []
     status: str
-    overall_match_score: float
+    is_shortlisted: bool = False
+    shortlisted_at: Optional[datetime] = None
+    rejection_reason: Optional[str] = None
+    overall_match_score: float = 0.0
+    technical_score: Optional[float] = 0.0
+    experience_score: Optional[float] = 0.0
+    education_score: Optional[float] = 0.0
+    domain_score: Optional[float] = 0.0
     ai_verdict: Optional[str] = None
     ai_summary: Optional[str] = None
     matched_skills: Optional[List[str]] = []
@@ -50,6 +75,7 @@ class ApplicationResponse(BaseModel):
     applied_date: datetime
     updated_at: datetime
     ai_analysis: Optional[AIAnalysisResponse] = None
+    status_history: Optional[List[StatusHistoryResponse]] = []
 
     class Config:
         from_attributes = True
@@ -59,3 +85,13 @@ class ApplicationListResponse(BaseModel):
     items: List[ApplicationResponse]
     skip: int
     limit: int
+
+class PipelineColumnResponse(BaseModel):
+    id: str
+    label: str
+    count: int
+    applications: List[ApplicationResponse]
+
+class PipelineBoardResponse(BaseModel):
+    total_candidates: int
+    columns: List[PipelineColumnResponse]

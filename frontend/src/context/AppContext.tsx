@@ -20,6 +20,8 @@ interface AppContextType {
   addJob: (newJob: Omit<Job, 'id' | 'applicantsCount' | 'createdAt'>) => void;
   updateJobStatus: (jobId: string, status: Job['status']) => void;
   updateApplicationStatus: (appId: string, newStatus: ApplicationStatus, remark?: string) => void;
+  shortlistCandidate: (appId: string, notes?: string) => void;
+  rejectCandidate: (appId: string, reason: string) => void;
   addApplication: (app: Application) => void;
   addInterview: (interview: Omit<Interview, 'id'>) => void;
   updateInterviewRating: (interviewId: string, rating: number, feedback: string) => void;
@@ -85,16 +87,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }
 
   const updateApplicationStatus = (appId: string, newStatus: ApplicationStatus, remark?: string) => {
+    const targetApp = applications.find(a => a.id === appId)
+    const oldStatus = targetApp?.status || 'APPLIED'
+
+    const historyEntry = {
+      id: `hist-${Date.now()}`,
+      fromStatus: oldStatus,
+      toStatus: newStatus,
+      changedByName: user.name,
+      reason: remark || `Transitioned to ${newStatus}`,
+      createdAt: new Date().toISOString()
+    }
+
     setApplications(prev =>
       prev.map(app => {
         if (app.id === appId) {
-          return { ...app, status: newStatus }
+          return {
+            ...app,
+            status: newStatus,
+            isShortlisted: newStatus === 'SHORTLISTED' ? true : app.isShortlisted,
+            shortlistedAt: newStatus === 'SHORTLISTED' ? new Date().toISOString() : app.shortlistedAt,
+            rejectionReason: newStatus === 'REJECTED' ? (remark || app.rejectionReason) : app.rejectionReason,
+            statusHistory: [historyEntry, ...(app.statusHistory || [])]
+          }
         }
         return app
       })
     )
 
-    const targetApp = applications.find(a => a.id === appId)
     if (targetApp) {
       setAuditLogs(prev => [
         {
@@ -103,11 +123,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           actorName: user.name,
           target: `${targetApp.candidateName} - ${targetApp.jobTitle}`,
           timestamp: 'Just now',
-          type: newStatus === 'OFFERED' || newStatus === 'HIRED' ? 'SUCCESS' : newStatus === 'REJECTED' ? 'WARNING' : 'INFO'
+          type: newStatus === 'SELECTED' || newStatus === 'HIRED' || newStatus === 'SHORTLISTED' ? 'SUCCESS' : newStatus === 'REJECTED' ? 'WARNING' : 'INFO'
         },
         ...prev
       ])
     }
+
+    // Attempt backend sync in background (fails gracefully if backend offline)
+    try {
+      fetch(`/api/v1/applications/${appId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus, reason: remark })
+      }).catch(() => {})
+    } catch {
+      // Ignored for offline/demo resilience
+    }
+  }
+
+  const shortlistCandidate = (appId: string, notes?: string) => {
+    updateApplicationStatus(appId, 'SHORTLISTED', notes || 'Candidate shortlisted based on skills and AI match.')
+  }
+
+  const rejectCandidate = (appId: string, reason: string) => {
+    updateApplicationStatus(appId, 'REJECTED', reason)
   }
 
   const addApplication = (app: Application) => {
@@ -160,6 +199,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addJob,
         updateJobStatus,
         updateApplicationStatus,
+        shortlistCandidate,
+        rejectCandidate,
         addApplication,
         addInterview,
         updateInterviewRating,

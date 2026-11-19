@@ -42,10 +42,22 @@ export type ApplicationStatus =
   | 'APPLIED' 
   | 'SCREENING' 
   | 'SHORTLISTED' 
+  | 'INTERVIEW_SCHEDULED'
+  | 'INTERVIEW_COMPLETED'
+  | 'SELECTED'
+  | 'REJECTED'
   | 'INTERVIEW' 
   | 'OFFERED' 
-  | 'HIRED' 
-  | 'REJECTED';
+  | 'HIRED';
+
+export interface StatusHistoryItem {
+  id: string;
+  fromStatus?: string | null;
+  toStatus: string;
+  changedByName?: string | null;
+  reason?: string | null;
+  createdAt: string;
+}
 
 export type FitVerdict = 'STRONG_FIT' | 'MODERATE_FIT' | 'LOW_FIT' | 'NO_FIT';
 
@@ -101,6 +113,11 @@ export interface Application {
   resumeRawTextSnippet: string;
   aiAnalysis?: AIAnalysis;
   notesCount: number;
+  candidateSkills?: string[];
+  isShortlisted?: boolean;
+  shortlistedAt?: string;
+  rejectionReason?: string;
+  statusHistory?: StatusHistoryItem[];
 }
 
 export type InterviewRound = 'Phone Screening' | 'Technical Round 1' | 'System Design' | 'Cultural Fit' | 'Final Executive';

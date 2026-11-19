@@ -26,6 +26,7 @@ from app.models.candidate_skill    import CandidateSkill
 from app.models.job                import Job
 from app.models.resume             import Resume
 from app.models.application        import Application
+from app.models.application_status_history import ApplicationStatusHistory
 from app.models.interview          import Interview
 from app.models.interview_feedback import InterviewFeedback
 from app.models.notification       import Notification
@@ -439,9 +440,50 @@ def seed():
             else:
                 apps[ad["key"]] = existing
                 print(f"  ⏭ Application already exists")
+        for k, app_inst in apps.items():
+            hist_count = db.query(ApplicationStatusHistory).filter(
+                ApplicationStatusHistory.application_id == app_inst.id
+            ).count()
+            if hist_count == 0:
+                h1 = ApplicationStatusHistory(
+                    application_id=app_inst.id,
+                    from_status=None,
+                    to_status="APPLIED",
+                    changed_by_name="Candidate Portal",
+                    reason="Candidate submitted resume and profile",
+                    created_at=PAST(14)
+                )
+                h2 = ApplicationStatusHistory(
+                    application_id=app_inst.id,
+                    from_status="APPLIED",
+                    to_status="SCREENING",
+                    changed_by_name="PyMuPDF + Gemini AI",
+                    reason=f"Automated AI screening completed: {app_inst.overall_match_score}% relevance",
+                    created_at=PAST(12)
+                )
+                db.add(h1)
+                db.add(h2)
+                if app_inst.status in ["SHORTLISTED", "INTERVIEW", "INTERVIEW_SCHEDULED"]:
+                    h3 = ApplicationStatusHistory(
+                        application_id=app_inst.id,
+                        from_status="SCREENING",
+                        to_status="SHORTLISTED",
+                        changed_by_name="Sarah Jenkins",
+                        reason="Shortlisted due to top percentile qualification match",
+                        created_at=PAST(8)
+                    )
+                    db.add(h3)
+                if app_inst.status in ["INTERVIEW", "INTERVIEW_SCHEDULED"]:
+                    h4 = ApplicationStatusHistory(
+                        application_id=app_inst.id,
+                        from_status="SHORTLISTED",
+                        to_status="INTERVIEW_SCHEDULED",
+                        changed_by_name="Sarah Jenkins",
+                        reason="Scheduled Technical Round 1 with Priya Sharma",
+                        created_at=PAST(4)
+                    )
+                    db.add(h4)
         db.commit()
-
-        # ── 8. INTERVIEWS ─────────────────────────────────────────────────────
         interviewer = users.get("priya.sharma@hireai.enterprise")
         alex_app    = apps.get("alex_ai")
 

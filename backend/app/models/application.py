@@ -1,6 +1,7 @@
 """
 Application model — links a Candidate to a Job with AI scoring results.
 UniqueConstraint prevents a candidate from applying to the same job twice.
+Maintains relationship with ApplicationStatusHistory for full audit trail.
 """
 import uuid
 from datetime import datetime, timezone
@@ -22,7 +23,9 @@ class Application(Base):
     candidate_id = Column(String(36), ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
     resume_id    = Column(String(36), ForeignKey("resumes.id", ondelete="SET NULL"), nullable=True)
 
-    # Pipeline status
+    # Pipeline status:
+    # Standard stages: APPLIED, SCREENING, SHORTLISTED, INTERVIEW_SCHEDULED, INTERVIEW_COMPLETED, SELECTED, REJECTED
+    # Backwards compatibility: INTERVIEW, OFFERED, HIRED
     status = Column(String(50), default="APPLIED", nullable=False, index=True)
 
     # Cover letter / notes from applicant
@@ -64,16 +67,22 @@ class Application(Base):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    job       = relationship("Job", back_populates="applications")
-    candidate = relationship("Candidate", back_populates="applications")
-    resume    = relationship("Resume", back_populates="applications")
-    interviews = relationship("Interview", back_populates="application", cascade="all, delete-orphan")
+    job            = relationship("Job", back_populates="applications")
+    candidate      = relationship("Candidate", back_populates="applications")
+    resume         = relationship("Resume", back_populates="applications")
+    interviews     = relationship("Interview", back_populates="application", cascade="all, delete-orphan")
+    status_history = relationship(
+        "ApplicationStatusHistory",
+        back_populates="application",
+        order_by="desc(ApplicationStatusHistory.created_at)",
+        cascade="all, delete-orphan"
+    )
 
     # ── Constraints & Indexes ────────────────────────────────────────────────
     __table_args__ = (
         UniqueConstraint("job_id", "candidate_id", name="uq_one_application_per_job"),
         CheckConstraint(
-            "status IN ('APPLIED','SCREENING','SHORTLISTED','INTERVIEW','OFFERED','HIRED','REJECTED')",
+            "status IN ('APPLIED','SCREENING','SHORTLISTED','INTERVIEW_SCHEDULED','INTERVIEW_COMPLETED','SELECTED','REJECTED','INTERVIEW','OFFERED','HIRED')",
             name="check_application_status"
         ),
         CheckConstraint(
