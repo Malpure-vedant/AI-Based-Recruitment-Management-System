@@ -1,24 +1,42 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Sparkles, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react'
+import { Sparkles, Lock, Mail, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Building2, User } from 'lucide-react'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { useApp } from '../context/AppContext'
+import { authApi } from '../lib/api'
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('sarah.jenkins@hireai.enterprise')
-  const [password, setPassword] = useState('••••••••••••')
+  const [password, setPassword] = useState('admin123')
   const [isLoading, setIsLoading] = useState(false)
-  const { user } = useApp()
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const { login } = useApp()
   const navigate = useNavigate()
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setTimeout(() => {
+    setErrorMessage(null)
+
+    try {
+      const ok = await login(email, password)
+      if (ok) {
+        navigate('/')
+      } else {
+        setErrorMessage('Authentication failed. Please verify your credentials.')
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Unable to connect to authentication server. Please check your network.')
+    } finally {
       setIsLoading(false)
-      navigate('/')
-    }, 600)
+    }
+  }
+
+  const fillDemoAdmin = () => {
+    setEmail('sarah.jenkins@hireai.enterprise')
+    setPassword('admin123')
+    setErrorMessage(null)
   }
 
   return (
@@ -40,6 +58,13 @@ export const LoginPage: React.FC = () => {
             <h2 className="text-base font-semibold text-slate-800">Welcome Back</h2>
             <p className="text-xs text-slate-500 mt-0.5">Enter your work credentials to access your talent portal</p>
           </div>
+
+          {errorMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="space-y-4">
             <Input
@@ -75,15 +100,22 @@ export const LoginPage: React.FC = () => {
           </form>
 
           {/* Quick Demo Credentials Pill */}
-          <div className="mt-6 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-600">
-            <div className="flex items-center gap-1.5 font-semibold text-slate-800 mb-1">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Demo Account Credentials</span>
+          <div
+            onClick={fillDemoAdmin}
+            className="mt-6 p-3 bg-slate-50 hover:bg-indigo-50/50 cursor-pointer transition-colors border border-slate-200/80 rounded-xl text-xs text-slate-600"
+            title="Click to autofill seeded credentials"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Seeded Administrator Credentials</span>
+              </div>
+              <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                Autofill
+              </span>
             </div>
-            <p className="text-[11px] text-slate-500">
-              Role: <span className="font-semibold text-slate-700">{user.role}</span> ({user.name})
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Click "Sign In" directly to explore the dashboard.</p>
+            <p className="text-[11px] text-slate-500 font-mono">sarah.jenkins@hireai.enterprise / admin123</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Stored in PostgreSQL with encrypted password.</p>
           </div>
 
           <p className="text-center text-xs text-slate-500 mt-6">
@@ -103,11 +135,39 @@ export const RegisterPage: React.FC = () => {
   const [company, setCompany] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const { login } = useApp()
   const navigate = useNavigate()
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    navigate('/')
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      await authApi.register({
+        email,
+        password,
+        full_name: name,
+        role: 'RECRUITER',
+        department: company,
+        title: 'Talent Acquisition Partner'
+      })
+
+      // Immediately sign in with the created account
+      const ok = await login(email, password)
+      if (ok) {
+        navigate('/')
+      } else {
+        navigate('/login')
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Registration failed. The email address may already be in use.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -121,16 +181,25 @@ export const RegisterPage: React.FC = () => {
           <p className="text-xs text-slate-400 mt-0.5">Supercharge your hiring pipeline with Gemini AI</p>
         </div>
 
+        {errorMessage && (
+          <div className="mx-8 mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         <form onSubmit={handleRegister} className="p-8 space-y-3.5 text-xs">
           <Input
             label="Full Name *"
+            icon={<User className="w-4 h-4" />}
             placeholder="Sarah Jenkins"
             value={name}
             onChange={e => setName(e.target.value)}
             required
           />
           <Input
-            label="Company / Organization *"
+            label="Company / Department *"
+            icon={<Building2 className="w-4 h-4" />}
             placeholder="Acme Global Inc."
             value={company}
             onChange={e => setCompany(e.target.value)}
@@ -139,6 +208,7 @@ export const RegisterPage: React.FC = () => {
           <Input
             label="Work Email *"
             type="email"
+            icon={<Mail className="w-4 h-4" />}
             placeholder="sarah@acme.com"
             value={email}
             onChange={e => setEmail(e.target.value)}
@@ -147,7 +217,8 @@ export const RegisterPage: React.FC = () => {
           <Input
             label="Create Secure Password *"
             type="password"
-            placeholder="Minimum 8 characters"
+            icon={<Lock className="w-4 h-4" />}
+            placeholder="Minimum 6 characters"
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
@@ -156,15 +227,19 @@ export const RegisterPage: React.FC = () => {
           <div className="space-y-1 pt-1 text-slate-600 text-[11px]">
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span>Full Gemini 1.5/2.0 API integration</span>
+              <span>Full Gemini 1.5/2.0 AI screening engine</span>
             </div>
             <div className="flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               <span>PyMuPDF automated resume parsing engine</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+              <span>PostgreSQL persistent candidate & interview tracking</span>
+            </div>
           </div>
 
-          <Button type="submit" variant="primary" size="md" className="w-full mt-4">
+          <Button type="submit" variant="primary" size="md" className="w-full mt-4" isLoading={isLoading}>
             Initialize Platform Workspace
           </Button>
 

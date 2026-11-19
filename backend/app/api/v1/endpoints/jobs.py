@@ -23,13 +23,26 @@ def create_job(
         "domain": 0.10
     }
 
+    recruiter_id = current_user.recruiter_profile.id if current_user.recruiter_profile else None
+
+    # Parse salary numbers
+    min_sal, max_sal = 120000.0, 160000.0
+    if job_in.salary_range:
+        import re
+        nums = [float(n.replace(',', '')) for n in re.findall(r'[\d,]+', job_in.salary_range)]
+        if len(nums) >= 2:
+            min_sal, max_sal = nums[0], nums[1]
+        elif len(nums) == 1:
+            min_sal, max_sal = nums[0], nums[0]
+
     job = Job(
         title=job_in.title,
         department=job_in.department,
         location=job_in.location or "Remote",
         job_type=job_in.job_type or "Full-time",
         experience_level=job_in.experience_level or "Senior",
-        salary_range=job_in.salary_range or "$120,000 - $160,000",
+        min_salary=min_sal,
+        max_salary=max_sal,
         openings=job_in.openings or 1,
         status=job_in.status or "OPEN",
         description=job_in.description,
@@ -37,7 +50,7 @@ def create_job(
         required_skills=job_in.required_skills or [],
         preferred_skills=job_in.preferred_skills or [],
         scoring_weights=weights,
-        created_by_id=current_user.id
+        recruiter_id=recruiter_id
     )
     db.add(job)
     db.commit()

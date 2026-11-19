@@ -81,7 +81,7 @@ class ScreeningResult(BaseModel):
 
 class ScreeningRequest(BaseModel):
     application_id: str
-    job_id: str
+    job_id: Optional[str] = None
     # Recruiter can inject additional context into the Gemini prompt
     override_instructions: Optional[str] = None
 

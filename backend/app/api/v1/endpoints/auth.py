@@ -7,6 +7,7 @@ from app.api.deps import get_db, get_current_user
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.core.config import settings
 from app.models.user import User
+from app.models.recruiter import Recruiter
 from app.schemas.user import UserCreate, UserResponse, UserLogin, TokenResponse, UserUpdate
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -25,12 +26,21 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
         email=user_in.email,
         hashed_password=get_password_hash(user_in.password),
         full_name=user_in.full_name,
-        role=user_in.role,
-        department=user_in.department,
-        title=user_in.title,
+        role=user_in.role or "RECRUITER",
         is_active=True
     )
     db.add(user)
+    db.flush()
+
+    if user.role in ("RECRUITER", "SUPER_ADMIN"):
+        recruiter_profile = Recruiter(
+            user_id=user.id,
+            department=user_in.department or "Talent Acquisition",
+            title=user_in.title or "Talent Acquisition Partner",
+            hiring_quota=10
+        )
+        db.add(recruiter_profile)
+
     db.commit()
     db.refresh(user)
     return user
@@ -95,12 +105,14 @@ def update_user_profile(
     """Updates profile attributes or changes password."""
     if user_update.full_name is not None:
         current_user.full_name = user_update.full_name
-    if user_update.department is not None:
-        current_user.department = user_update.department
-    if user_update.title is not None:
-        current_user.title = user_update.title
     if user_update.password is not None:
         current_user.hashed_password = get_password_hash(user_update.password)
+
+    if current_user.recruiter_profile:
+        if user_update.department is not None:
+            current_user.recruiter_profile.department = user_update.department
+        if user_update.title is not None:
+            current_user.recruiter_profile.title = user_update.title
 
     db.commit()
     db.refresh(current_user)

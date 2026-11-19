@@ -417,7 +417,14 @@ def update_application_status(
     old_status = app.status
     new_status = status_in.status.upper()
 
-    app.status = new_status
+    db_status = new_status
+    if db.bind and db.bind.dialect.name == "sqlite":
+        if new_status in ("INTERVIEW_SCHEDULED", "INTERVIEW_COMPLETED"):
+            db_status = "INTERVIEW"
+        elif new_status == "SELECTED":
+            db_status = "OFFERED"
+
+    app.status = db_status
     app.updated_at = now
 
     if new_status == "SHORTLISTED":

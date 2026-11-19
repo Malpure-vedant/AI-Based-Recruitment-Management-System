@@ -36,6 +36,7 @@ import {
   ResponsiveContainer
 } from 'recharts'
 import { useApp } from '../context/AppContext'
+import { analyticsApi } from '../lib/api'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -99,9 +100,8 @@ export const AnalyticsPage: React.FC = () => {
   const fetchAnalytics = async () => {
     setIsLoading(true)
     try {
-      const res = await fetch(`/api/v1/analytics/dashboard?range_filter=${encodeURIComponent(dateRange)}`)
-      if (res.ok) {
-        const data: AnalyticsData = await res.json()
+      const data = await analyticsApi.dashboard(dateRange)
+      if (data) {
         setBackendData(data)
         setLastRefreshed(new Date().toLocaleTimeString())
       }

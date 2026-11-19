@@ -13,6 +13,26 @@ import { PipelinePage } from '../pages/PipelinePage'
 import { AnalyticsPage } from '../pages/AnalyticsPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { SettingsPage } from '../pages/SettingsPage'
+import { useApp } from '../context/AppContext'
+
+const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated, isLoading } = useApp()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white gap-3">
+        <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-slate-400 font-medium tracking-wide">Connecting to TalentPulse Engine...</p>
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
+}
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -21,8 +41,14 @@ export const AppRoutes: React.FC = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      {/* Main SaaS App Shell */}
-      <Route element={<AppLayout />}>
+      {/* Protected SaaS App Shell */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <AppLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/candidates" element={<CandidatesPage />} />

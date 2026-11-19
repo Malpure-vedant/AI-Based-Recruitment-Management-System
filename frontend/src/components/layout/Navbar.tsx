@@ -20,11 +20,17 @@ export interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, onOpenCreateJob }) => {
-  const { user, auditLogs } = useApp()
+  const { user, auditLogs, logout } = useApp()
   const [showNotifications, setShowNotifications] = useState(false)
   const [showProfileMenu, setShowProfileMenu] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
+
+  const handleLogout = async () => {
+    setShowProfileMenu(false)
+    await logout()
+    navigate('/login')
+  }
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -155,13 +161,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, onOpenCreateJob
                 Platform Settings
               </Link>
               <div className="border-t border-slate-100 my-1" />
-              <Link
-                to="/login"
-                onClick={() => setShowProfileMenu(false)}
-                className="block px-4 py-2 text-red-600 hover:bg-red-50"
+              <button
+                onClick={handleLogout}
+                className="w-full text-left block px-4 py-2 text-red-600 hover:bg-red-50 cursor-pointer"
               >
                 Sign Out
-              </Link>
+              </button>
             </div>
           )}
         </div>

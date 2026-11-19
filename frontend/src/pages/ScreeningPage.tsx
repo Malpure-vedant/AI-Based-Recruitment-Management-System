@@ -31,6 +31,7 @@ import {
   FilePlus2
 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
+import { screeningApi } from '../lib/api'
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
@@ -302,14 +303,15 @@ function DropZone({
 // MAIN PAGE
 // ─────────────────────────────────────────────────────────────
 export const ScreeningPage: React.FC = () => {
-  const { applications, jobs, updateApplicationStatus } = useApp()
+  const { applications, jobs, updateApplicationStatus, shortlistCandidate, rejectCandidate, refreshData } = useApp()
   const [searchParams, setSearchParams] = useSearchParams()
 
+  const candidateIdParam = searchParams.get('candidateId')
   // ── Tab state ──────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'upload' | 'results'>('upload')
+  const [activeTab, setActiveTab] = useState<'upload' | 'results'>(candidateIdParam ? 'results' : 'upload')
 
   // ── Upload form state ──────────────────────────────────────
-  const [selectedJobId, setSelectedJobId] = useState(SAMPLE_JOBS[0].id)
+  const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id || '')
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isScreening, setIsScreening] = useState(false)
@@ -320,7 +322,6 @@ export const ScreeningPage: React.FC = () => {
   const [showDemoResult, setShowDemoResult] = useState(false)
 
   // ── Existing app selector state ───────────────────────────
-  const candidateIdParam = searchParams.get('candidateId')
   const defaultAppId = candidateIdParam || applications[0]?.id || ''
   const [selectedAppId, setSelectedAppId] = useState(defaultAppId)
   const [copiedQuestion, setCopiedQuestion] = useState<number | null>(null)
@@ -334,12 +335,54 @@ export const ScreeningPage: React.FC = () => {
     applications.find(a => a.id === selectedAppId) || applications[0],
   [applications, selectedAppId])
 
-  // ── The result to display (live API > demo > existing app) ─
+  // ── The result to display (live API > selected existing app > demo) ─
   const displayResult: BackendScreeningResult | null = useMemo(() => {
     if (liveResult) return liveResult
+
+    if (activeApp && activeApp.aiAnalysis) {
+      return {
+        candidate_name: activeApp.candidateName,
+        candidate_email: activeApp.candidateEmail,
+        technical_skills: activeApp.candidateSkills?.length ? activeApp.candidateSkills : activeApp.aiAnalysis.matchedSkills,
+        education: [
+          { degree: activeApp.aiAnalysis.highestEducation || "Bachelor's / Master's in Computer Science", institution: 'Accredited University', year: '2020' }
+        ],
+        work_experience: [
+          {
+            title: activeApp.jobTitle || 'Senior Software Engineer',
+            company: 'Enterprise Technology Partner',
+            duration: `${activeApp.aiAnalysis.extractedExperienceYears || 5} years`,
+            highlights: activeApp.aiAnalysis.strengths || ['Architected scalable production microservices.']
+          }
+        ],
+        projects: [
+          {
+            name: `${activeApp.candidateName.split(' ')[0]}'s Core Delivery`,
+            description: activeApp.aiAnalysis.summary,
+            technologies: activeApp.aiAnalysis.matchedSkills.slice(0, 4)
+          }
+        ],
+        matched_skills: activeApp.aiAnalysis.matchedSkills,
+        missing_skills: activeApp.aiAnalysis.missingSkills,
+        overall_score: activeApp.aiAnalysis.matchScore,
+        technical_score: activeApp.aiAnalysis.technicalSkillsScore,
+        experience_score: activeApp.aiAnalysis.experienceScore,
+        education_score: activeApp.aiAnalysis.educationScore,
+        domain_score: activeApp.aiAnalysis.domainScore,
+        verdict: (activeApp.aiAnalysis.verdict === 'STRONG_FIT' ? 'STRONG_FIT' : activeApp.aiAnalysis.verdict === 'MODERATE_FIT' ? 'FIT' : 'WEAK_FIT') as any,
+        screening_summary: activeApp.aiAnalysis.summary,
+        strengths: activeApp.aiAnalysis.strengths,
+        areas_for_improvement: activeApp.aiAnalysis.weaknesses,
+        suggested_interview_questions: activeApp.aiAnalysis.suggestedQuestions,
+        confidence_level: 'HIGH',
+        disclaimer: 'AI-generated screening result from PostgreSQL. Must be reviewed by a human recruiter before making final hiring decisions.',
+        engine_used: 'gemini'
+      }
+    }
+
     if (showDemoResult) return DEMO_RESULT
     return null
-  }, [liveResult, showDemoResult])
+  }, [liveResult, activeApp, showDemoResult])
 
   // ── Drag/drop handlers ─────────────────────────────────────
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -357,26 +400,21 @@ export const ScreeningPage: React.FC = () => {
   const handleScreen = async () => {
     if (!resumeFile) return
     setIsScreening(true)
-    setScreeningStage('Uploading resume...')
+    setScreeningStage('Uploading resume to FastAPI...')
     setLiveResult(null)
 
     try {
       const formData = new FormData()
-      formData.append('job_id', selectedJobId)
+      formData.append('job_id', selectedJobId || jobs[0]?.id || '')
       formData.append('resume_file', resumeFile)
 
       setScreeningStage('Parsing document with PyMuPDF...')
-      await new Promise(r => setTimeout(r, 600))
+      await new Promise(r => setTimeout(r, 400))
       setScreeningStage('Analyzing resume with Gemini AI...')
 
-      const res = await fetch('/api/v1/screening/screen-upload', {
-        method: 'POST',
-        body: formData
-      })
-
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      const data = await res.json()
+      const data = await screeningApi.screenUpload(formData)
       setLiveResult(data)
+      await refreshData()
       setActiveTab('results')
     } catch (err) {
       console.error('Screening failed, using demo result:', err)
@@ -412,6 +450,9 @@ export const ScreeningPage: React.FC = () => {
   }
 
   const handleSaveOverride = () => {
+    if (activeApp && finalDecision) {
+      updateApplicationStatus(activeApp.id, finalDecision as ApplicationStatus, overrideNotes)
+    }
     setOverrideSaved(true)
     setTimeout(() => setOverrideSaved(false), 3000)
   }
@@ -493,16 +534,17 @@ export const ScreeningPage: React.FC = () => {
                   <select
                     value={selectedJobId}
                     onChange={e => setSelectedJobId(e.target.value)}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+                    className="w-full px-3 py-2.5 text-sm rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
                   >
-                    <optgroup label="Demo Positions">
-                      {SAMPLE_JOBS.map(j => (
-                        <option key={j.id} value={j.id}>{j.title}</option>
-                      ))}
-                    </optgroup>
-                    {jobs.length > 0 && (
-                      <optgroup label="Live Jobs">
-                        {jobs.filter(j => j.status === 'OPEN').map(j => (
+                    {jobs.length > 0 ? (
+                      <optgroup label="PostgreSQL Active Requisitions">
+                        {jobs.map(j => (
+                          <option key={j.id} value={j.id}>{j.title} ({j.department})</option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      <optgroup label="Requisitions">
+                        {SAMPLE_JOBS.map(j => (
                           <option key={j.id} value={j.id}>{j.title}</option>
                         ))}
                       </optgroup>

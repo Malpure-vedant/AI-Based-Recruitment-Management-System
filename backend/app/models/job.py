@@ -76,6 +76,12 @@ class Job(Base):
     recruiter    = relationship("Recruiter", back_populates="jobs")
     applications = relationship("Application", back_populates="job", cascade="all, delete-orphan")
 
+    @property
+    def salary_range(self) -> str:
+        if self.min_salary is not None and self.max_salary is not None:
+            return f"${int(self.min_salary):,} - ${int(self.max_salary):,}"
+        return "$120,000 - $160,000"
+
     # ── Constraints & Indexes ────────────────────────────────────────────────
     __table_args__ = (
         CheckConstraint("openings > 0", name="check_job_openings_positive"),

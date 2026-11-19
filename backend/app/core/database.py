@@ -14,12 +14,13 @@ try:
     if db_url.startswith("sqlite"):
         engine = create_engine(db_url, connect_args={"check_same_thread": False})
     else:
-        # PostgreSQL Engine with connection pooling
+        # PostgreSQL Engine with connection pooling and fast connect timeout
         engine = create_engine(
             db_url,
             pool_pre_ping=True,
             pool_size=10,
-            max_overflow=20
+            max_overflow=20,
+            connect_args={"connect_timeout": 2}
         )
         # Test connection
         with engine.connect() as conn:

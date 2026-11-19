@@ -118,7 +118,8 @@ def screen_application(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
 
     # ── Fetch Job ────────────────────────────────────────────────────────
-    job: Optional[Job] = db.query(Job).filter(Job.id == body.job_id).first()
+    target_job_id = body.job_id or application.job_id
+    job: Optional[Job] = db.query(Job).filter(Job.id == target_job_id).first()
     if not job:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
 

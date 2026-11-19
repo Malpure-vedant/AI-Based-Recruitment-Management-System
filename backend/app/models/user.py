@@ -28,6 +28,18 @@ class User(Base):
     feedbacks_given = relationship("InterviewFeedback", back_populates="interviewer")
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
+    @property
+    def department(self) -> str:
+        if self.recruiter_profile and self.recruiter_profile.department:
+            return self.recruiter_profile.department
+        return "Talent Acquisition"
+
+    @property
+    def title(self) -> str:
+        if self.recruiter_profile and self.recruiter_profile.title:
+            return self.recruiter_profile.title
+        return "Lead Recruiter"
+
     __table_args__ = (
         CheckConstraint(
             "role IN ('SUPER_ADMIN', 'RECRUITER', 'INTERVIEWER', 'CANDIDATE')",

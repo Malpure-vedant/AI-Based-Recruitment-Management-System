@@ -24,7 +24,7 @@ export interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { user, applications, interviews, jobs } = useApp()
+  const { user, applications, interviews, jobs, logout } = useApp()
 
   const navItems = [
     { label: 'Main Dashboard', path: '/', icon: LayoutDashboard },
@@ -142,13 +142,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <p className="text-[10px] text-slate-400 truncate">{user.role}</p>
               </div>
             </div>
-            <NavLink
-              to="/login"
+            <button
+              onClick={() => logout()}
               title="Sign Out"
-              className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-            </NavLink>
+            </button>
           </div>
         </div>
       </aside>
