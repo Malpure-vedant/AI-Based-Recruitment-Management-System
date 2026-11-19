@@ -1,5 +1,5 @@
 import re
-import fitz  # PyMuPDF
+import pymupdf as fitz
 from typing import Dict, Any, List
 
 # High-frequency tech skills dictionary for regex detection
