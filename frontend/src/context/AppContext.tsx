@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState } from 'react'
-import { Job, Application, Interview, AuditLog, User, ApplicationStatus } from '../types'
+import { Job, Application, Interview, AuditLog, User, ApplicationStatus, InterviewStatus } from '../types'
 import {
   currentUser as defaultUser,
   initialJobs,
