@@ -199,15 +199,18 @@ def get_candidate_interview_history(
 
 @router.get("/notifications/in-app", response_model=List[NotificationResponse])
 def get_user_notifications(
+    unread_only: bool = Query(False),
     limit: int = Query(20, ge=1, le=50),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Retrieves in-app recruitment activity notifications for the signed-in user."""
     safe_limit = limit if isinstance(limit, int) else 20
+    query = db.query(Notification).filter(Notification.user_id == current_user.id)
+    if unread_only:
+        query = query.filter(Notification.is_read == False)
     notifs = (
-        db.query(Notification)
-        .filter(Notification.user_id == current_user.id)
+        query
         .order_by(desc(Notification.created_at))
         .limit(safe_limit)
         .all()

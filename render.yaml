@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: talentpulse-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: talentpulse-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: 1440
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: BACKEND_CORS_ORIGINS
+        value: '["https://*.vercel.app","http://localhost:5173","http://localhost:3000"]'
+
+databases:
+  - name: talentpulse-db
+    databaseName: recruitment_db
+    user: postgres
+    plan: free

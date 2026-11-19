@@ -80,5 +80,27 @@ class Candidate(Base):
         Index("ix_candidates_name", "full_name"),
     )
 
+    @property
+    def first_name(self) -> str:
+        parts = (self.full_name or "").split(" ", 1)
+        return parts[0] if parts else ""
+
+    @property
+    def last_name(self) -> str:
+        parts = (self.full_name or "").split(" ", 1)
+        return parts[1] if len(parts) > 1 else ""
+
+    @property
+    def headline(self) -> str:
+        return self.current_title or ""
+
+    @property
+    def total_experience_years(self) -> float:
+        return self.experience_years or 0.0
+
+    @property
+    def highest_education(self) -> str:
+        return self.education_level or ""
+
     def __repr__(self) -> str:
         return f"<Candidate id={self.id} name={self.full_name!r} email={self.email}>"

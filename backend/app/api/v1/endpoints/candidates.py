@@ -5,6 +5,7 @@ from sqlalchemy import or_
 
 from app.api.deps import get_db, get_current_user, role_required
 from app.models.candidate import Candidate
+from app.models.candidate_skill import CandidateSkill
 from app.models.user import User
 from app.schemas.candidate import CandidateCreate, CandidateUpdate, CandidateResponse, CandidateListResponse
 
@@ -24,21 +25,24 @@ def create_candidate(
             detail=f"Candidate with email {candidate_in.email} already exists."
         )
 
+    full_name = f"{candidate_in.first_name} {candidate_in.last_name}".strip()
     candidate = Candidate(
-        first_name=candidate_in.first_name,
-        last_name=candidate_in.last_name,
+        full_name=full_name,
         email=candidate_in.email,
         phone=candidate_in.phone,
         location=candidate_in.location,
-        headline=candidate_in.headline,
+        current_title=candidate_in.headline,
         linkedin_url=candidate_in.linkedin_url,
         github_url=candidate_in.github_url,
         portfolio_url=candidate_in.portfolio_url,
-        total_experience_years=candidate_in.total_experience_years or 0.0,
-        highest_education=candidate_in.highest_education,
-        skills=candidate_in.skills or [],
+        experience_years=candidate_in.total_experience_years or 0.0,
+        education_level=candidate_in.highest_education,
         avatar_url=candidate_in.avatar_url
     )
+    if candidate_in.skills:
+        for sk in candidate_in.skills:
+            candidate.skills.append(CandidateSkill(skill_name=sk))
+
     db.add(candidate)
     db.commit()
     db.refresh(candidate)
@@ -59,7 +63,7 @@ def get_candidates(
     if location:
         query = query.filter(Candidate.location.ilike(f"%{location}%"))
     if min_experience is not None:
-        query = query.filter(Candidate.total_experience_years >= min_experience)
+        query = query.filter(Candidate.experience_years >= min_experience)
 
     total = query.count()
     items = query.order_by(Candidate.created_at.desc()).offset(skip).limit(limit).all()
@@ -79,14 +83,14 @@ def search_candidates(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Searches candidates across first name, last name, email, and headline."""
+    """Searches candidates across name, email, and headline."""
     term = f"%{q}%"
     query = db.query(Candidate).filter(
         or_(
-            Candidate.first_name.ilike(term),
-            Candidate.last_name.ilike(term),
+            Candidate.full_name.ilike(term),
             Candidate.email.ilike(term),
-            Candidate.headline.ilike(term)
+            Candidate.current_title.ilike(term),
+            Candidate.location.ilike(term)
         )
     )
     total = query.count()
@@ -130,8 +134,20 @@ def update_candidate(
         )
 
     update_data = candidate_in.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(candidate, field, value)
+    if "first_name" in update_data or "last_name" in update_data:
+        first = update_data.get("first_name", candidate.first_name)
+        last = update_data.get("last_name", candidate.last_name)
+        candidate.full_name = f"{first} {last}".strip()
+    if "headline" in update_data:
+        candidate.current_title = update_data["headline"]
+    if "total_experience_years" in update_data:
+        candidate.experience_years = update_data["total_experience_years"] or 0.0
+    if "highest_education" in update_data:
+        candidate.education_level = update_data["highest_education"]
+
+    for field in ("email", "phone", "location", "linkedin_url", "github_url", "portfolio_url", "avatar_url"):
+        if field in update_data:
+            setattr(candidate, field, update_data[field])
 
     db.commit()
     db.refresh(candidate)

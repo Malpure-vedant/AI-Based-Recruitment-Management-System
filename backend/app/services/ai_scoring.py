@@ -148,6 +148,12 @@ class GeminiScreeningService:
         scoring_weights = job.get("scoring_weights", {
             "skills": 0.40, "experience": 0.35, "education": 0.15, "domain": 0.10
         })
+        if hasattr(scoring_weights, "model_dump"):
+            scoring_weights = scoring_weights.model_dump()
+        elif hasattr(scoring_weights, "dict"):
+            scoring_weights = scoring_weights.dict()
+        elif not isinstance(scoring_weights, dict):
+            scoring_weights = {"skills": 0.40, "experience": 0.35, "education": 0.15, "domain": 0.10}
 
         return f"""You are an expert senior technical recruiter performing an AI-assisted resume screening.
 
@@ -208,7 +214,8 @@ Scoring rules:
         prompt = self._build_prompt(job, resume_text)
         response = model.generate_content(
             prompt,
-            generation_config={"response_mime_type": "application/json"}
+            generation_config={"response_mime_type": "application/json"},
+            request_options={"timeout": 5.0}
         )
         return response.text
 
@@ -290,6 +297,12 @@ Scoring rules:
         scoring_weights = job.get("scoring_weights", {
             "skills": 0.40, "experience": 0.35, "education": 0.15, "domain": 0.10
         })
+        if hasattr(scoring_weights, "model_dump"):
+            scoring_weights = scoring_weights.model_dump()
+        elif hasattr(scoring_weights, "dict"):
+            scoring_weights = scoring_weights.dict()
+        elif not isinstance(scoring_weights, dict):
+            scoring_weights = {"skills": 0.40, "experience": 0.35, "education": 0.15, "domain": 0.10}
         required_skills: List[str] = job.get("required_skills", [])
         preferred_skills: List[str] = job.get("preferred_skills", [])
         job_description: str = job.get("description", "")

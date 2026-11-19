@@ -1,19 +1,20 @@
 # AI-Based Recruitment Management System (TalentPulse AI)
 
-An enterprise-grade, full-stack **AI-Powered Recruitment Management System (RMS / ATS)** designed to streamline end-to-end recruitment pipelines, parse resumes using layout-preserved extraction, evaluate candidates against custom job rubrics using **Google Gemini AI**, and empower hiring teams with real-time candidate ranking and collaborative scorecards.
+An enterprise-grade, full-stack **AI-Powered Recruitment Management System (RMS / ATS)** designed to streamline end-to-end recruitment pipelines, parse resumes using layout-preserved extraction, evaluate candidates against custom job rubrics using **Google Gemini AI**, and empower hiring teams with real-time candidate ranking, collaborative interview scorecards, and dynamic telemetry analytics.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Key Modules & Capabilities
 
-- **Decoupled Architecture:** Single Page Application (SPA) built with React 19, Vite, and Tailwind CSS v4 consuming modular FastAPI microservices.
-- **Explainable AI Screening (XAI):** Multi-dimensional scoring evaluating Technical Skills (40%), Experience Depth (35%), Education (15%), and Domain Alignment (10%) with verified skills vs. missing gaps.
-- **Deterministic Document Parsing:** Layout-preserved, multi-column PDF text extraction powered by **PyMuPDF (`fitz`)**.
-- **Interactive Kanban Pipeline:** 7-stage candidate progression (`Applied` $\to$ `AI Screened` $\to$ `Shortlisted` $\to$ `Interview` $\to$ `Offered` $\to$ `Hired` $\to$ `Rejected`) with 1-click stage advancement.
-- **AI Candidate Ranking Leaderboard:** Deterministic candidate stack-ranking with gold/silver/bronze podium displays, minimum score threshold filters, and head-to-head candidate comparison.
-- **Interview Coordination & Collaborative Scorecards:** Schedule rounds with Google Meet/Teams links, criteria ratings (1–5 stars), and Gemini-generated interview questions tailored specifically to candidate resume gaps.
-- **Talent Analytics Telemetry:** Interactive hiring velocity charts, candidate department spread, AI score distributions, and application sourcing channels.
-- **Role-Based Access Control (RBAC):** Strict JWT bearer token authentication with role-guarded routes (`SUPER_ADMIN`, `RECRUITER`, `INTERVIEWER`, `CANDIDATE`).
+1. **Authentication & Authorization:** Secure JWT Bearer authentication, bcrypt hashing, and Role-Based Access Control (`SUPER_ADMIN`, `RECRUITER`, `INTERVIEWER`, `CANDIDATE`).
+2. **Requisition & Job Management:** Create, pause, and close requisitions with customizable criteria scoring weights (skills, experience, education, domain).
+3. **Candidate Registry & Deduplication:** Unified candidate profiles with email deduplication and fast multi-term search.
+4. **Resume Processing & Security:** PDF file layout parsing via **PyMuPDF (`fitz`)**, MIME-type validation, 15MB file size boundary enforcement, and UUID-prefixed file storage.
+5. **Explainable AI Screening (XAI):** Google Gemini 1.5 Flash evaluation with fallback to a deterministic rubric scoring engine when offline or when no API key is provided.
+6. **Candidate Ranking Leaderboard:** Automated stack-ranking by match percentage with gold/silver/bronze podium indicators and side-by-side candidate comparison.
+7. **Recruitment Pipeline Kanban:** Interactive 7-stage board (`APPLIED` $\to$ `SCREENING` $\to$ `SHORTLISTED` $\to$ `INTERVIEW` $\to$ `OFFERED` $\to$ `HIRED` $\to$ `REJECTED`) backed by PostgreSQL status history audit logging.
+8. **Interview Management:** Round scheduling, Google Meet/Teams links, criteria scorecards (1–5 stars), and in-app recruiter notifications.
+9. **Analytics Telemetry:** 5 dynamic Recharts visualizations (Applications Over Time, Status Distribution, Job-wise Applications, Recruitment Funnel, Interview Outcomes) and 8 real-time KPIs.
 
 ---
 
@@ -22,116 +23,101 @@ An enterprise-grade, full-stack **AI-Powered Recruitment Management System (RMS 
 | Domain | Technologies |
 | :--- | :--- |
 | **Frontend** | React 19, Vite, TypeScript, Tailwind CSS v4, Lucide Icons, Recharts |
-| **Backend** | Python 3.12+, FastAPI, Uvicorn, Pydantic v2 |
-| **ORM & Database** | SQLAlchemy 2.0, PostgreSQL (with SQLite fallback for local development) |
-| **Authentication** | JWT (JSON Web Tokens), bcrypt password hashing, RBAC |
-| **Document Parsing** | PyMuPDF (`fitz`) |
-| **Artificial Intelligence** | Google Gemini API (Gemini 1.5 Flash / 2.0 Flash) |
+| **Backend** | Python 3.11+, FastAPI, Uvicorn, Pydantic v2, SQLAlchemy 2.0 |
+| **Database** | Managed PostgreSQL (with local SQLite development fallback) |
+| **Authentication** | JWT (HMAC SHA-256), bcrypt, Role-Based Access Control (RBAC) |
+| **PDF Extraction** | PyMuPDF (`fitz` / `pymupdf`) |
+| **Artificial Intelligence** | Google Gemini API (`gemini-1.5-flash`) + Deterministic Rubric Engine |
+| **Cloud Deployment** | Vercel (Frontend), Render (Backend), Managed PostgreSQL (Neon / Render) |
 
 ---
 
-## 📂 Project Structure
+## 🧪 Comprehensive Automated Testing & Verification
 
+The system includes an automated test suite verifying all 12 operational domains and security controls:
+
+```bash
+# Run the complete test suite
+python backend/tests/test_comprehensive_suite.py
 ```
-.
-├── ARCHITECTURE.md                  # Comprehensive architectural specification
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── deps.py              # Auth & RBAC dependency injection
-│   │   │   └── v1/
-│   │   │       ├── router.py        # Central API router
-│   │   │       └── endpoints/       # Modular endpoints (auth, candidates, jobs, etc.)
-│   │   ├── core/                    # Security, database connection, config settings
-│   │   ├── models/                  # SQLAlchemy ORM models
-│   │   ├── schemas/                 # Pydantic v2 validation DTOs
-│   │   └── services/                # PyMuPDF resume parser & Gemini AI scoring engine
-│   ├── uploads/resumes/             # Secure PDF file storage
-│   ├── requirements.txt             # Python dependencies
-│   ├── .env.example                 # Environment configuration template
-│   └── main.py                      # FastAPI ASGI entrypoint
-├── frontend/
-│   ├── src/
-│   │   ├── components/              # Shadcn UI reusable components, layout shells
-│   │   ├── context/                 # Reactive state provider (AppContext)
-│   │   ├── data/                    # High-fidelity mock datasets
-│   │   ├── pages/                   # All 12 SaaS dashboard pages
-│   │   ├── routes/                  # React Router v7 routes
-│   │   └── types/                   # TypeScript interfaces
-│   ├── package.json
-│   └── vite.config.ts
-└── README.md
-```
+
+### Verified Test Domains
+- [x] **Test 1**: User Registration & Login (Duplicate email rejection 400, bad credential rejection 401)
+- [x] **Test 2**: JWT Authentication (HMAC SHA-256 token creation, expiration check, Bearer context validation)
+- [x] **Test 3**: Job Creation & Requisition Management (Openings constraint, lifecycle transitions `OPEN` $\to$ `PAUSED` $\to$ `OPEN`)
+- [x] **Test 4**: Candidate Registration & Deduplication (Email uniqueness constraint, query term search)
+- [x] **Test 5**: Resume Uploading & Security Controls (PDF validation, non-PDF rejection 400, >15MB rejection 400)
+- [x] **Test 6**: PDF Text Extraction (PyMuPDF layout-preserving text & entity extraction)
+- [x] **Test 7**: Gemini AI Integration (AI screening evaluation, structured JSON schema response, rubric fallback)
+- [x] **Test 8**: Candidate Screening & Persistence (Deterministic scoring weights, database persistence)
+- [x] **Test 9**: Recruitment Pipeline & Kanban (Status transitions, immutable audit trail logging)
+- [x] **Test 10**: Interview Management & Feedback (Scheduling, in-app notifications, 5-star scorecard submission)
+- [x] **Test 11**: Analytics Telemetry (Dynamic KPIs and 5 Recharts data payloads computed from real records)
+- [x] **Test 12**: API Validation & Secret Isolation (Pydantic boundaries, 404 handlers, zero API key leakage)
 
 ---
 
-## ⚙️ Getting Started
+## ⚙️ Local Development Setup
 
-### 1. Backend Setup (FastAPI)
+### 1. Backend (FastAPI)
+```bash
+cd backend
+python -m venv venv
 
-1. Navigate to the `backend` folder:
-   ```bash
-   cd backend
-   ```
-2. Create and activate a Python virtual environment:
-   ```bash
-   python -m venv venv
-   # Windows:
-   venv\Scripts\activate
-   # macOS/Linux:
-   source venv/bin/activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Configure environment variables:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your PostgreSQL credentials and Gemini API key (optional)
-   ```
-5. Start the FastAPI development server:
-   ```bash
-   python main.py
-   # Or using uvicorn:
-   uvicorn main:app --reload --port 8000
-   ```
-6. Open interactive API docs:
-   - **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-   - **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
 
-*Default Admin Account (auto-seeded):*  
-- **Email:** `sarah.jenkins@hireai.enterprise`  
+pip install -r requirements.txt
+cp .env.example .env
+python main.py
+```
+API Documentation:
+- Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
+- ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+*Default Seeded Recruiter Credentials:*
+- **Email:** `sarah.jenkins@hireai.enterprise`
 - **Password:** `admin123`
 
----
-
-### 2. Frontend Setup (React + Vite)
-
-1. Navigate to the `frontend` folder:
-   ```bash
-   cd frontend
-   ```
-2. Install Node dependencies:
-   ```bash
-   npm install
-   ```
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-4. Open the application at **`http://localhost:5173`**.
+### 2. Frontend (React + Vite)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173). The Vite dev proxy automatically routes `/api` requests to `http://127.0.0.1:8000`.
 
 ---
 
-## 📖 Interactive API Modules
+## 🚀 Production Deployment
 
-1. **Authentication (`/api/v1/auth`):** User registration, JWT login, profile lookup, role verification.
-2. **Candidates (`/api/v1/candidates`):** Candidate profile creation, full-text search, pagination, and detail updates.
-3. **Jobs (`/api/v1/jobs`):** Requisition management, custom criteria weight configurations, and status transitions.
-4. **Applications (`/api/v1/applications`):** Public job application submission, automated scoring, and pipeline status advancement.
-5. **Resumes (`/api/v1/resumes`):** PDF file upload, text layout extraction using PyMuPDF, and secure streaming downloads.
-6. **Interviews (`/api/v1/interviews`):** Scheduling, video conference links, and interviewer scorecards with 1–5 star ratings.
+Detailed instructions for deploying the system are documented in **[DEPLOYMENT.md](file:///DEPLOYMENT.md)**.
+
+### Quick Deployment Summary:
+1. **Managed PostgreSQL**: Provision a database instance on Render, Neon, or Supabase and copy the connection string.
+2. **Backend (Render)**:
+   - Root Directory: `backend`
+   - Build Command: `pip install -r requirements.txt`
+   - Start Command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - Configure Environment Variables: `DATABASE_URL`, `SECRET_KEY`, `ALGORITHM`, `GEMINI_API_KEY`, `BACKEND_CORS_ORIGINS`.
+3. **Frontend (Vercel)**:
+   - Root Directory: `frontend`
+   - Framework Preset: `Vite`
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+   - Environment Variable: `VITE_API_URL` set to your Render backend URL.
+
+---
+
+## 🔒 Security Summary
+
+- **File Type & Size Restrictions**: Uploads restricted to `.pdf` and capped at 15MB.
+- **Sanitized Filenames**: Random UUID prefixes prevent file collisions and directory traversal attacks.
+- **Role-Based Protection**: Destructive and administrative operations restricted to `SUPER_ADMIN` and `RECRUITER`.
+- **Environment Isolation**: API keys and secrets are loaded from environment variables and never returned in API responses.
+- **CORS Allowlist**: Configurable CORS prevents unauthorized cross-origin requests in production.
 
 ---
 

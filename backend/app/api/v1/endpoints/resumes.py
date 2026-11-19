@@ -14,7 +14,7 @@ from app.services.resume_parser import resume_parser_service
 router = APIRouter(prefix="/resumes", tags=["Resumes"])
 
 @router.post("/upload", response_model=ResumeUploadResponse)
-async def upload_resume(
+def upload_resume(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user)
 ):
@@ -31,16 +31,16 @@ async def upload_resume(
     stored_filename = f"{unique_id}_{clean_name}"
     file_path = os.path.join(settings.UPLOAD_DIR, stored_filename)
 
-    # Asynchronous file save
-    content = await file.read()
+    # Read file content safely
+    content = file.file.read() if hasattr(file, "file") and hasattr(file.file, "read") else file.read()
     if len(content) > settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File exceeds maximum allowed size of {settings.MAX_UPLOAD_SIZE_MB}MB."
         )
 
-    async with aiofiles.open(file_path, "wb") as out_file:
-        await out_file.write(content)
+    with open(file_path, "wb") as out_file:
+        out_file.write(content)
 
     return {
         "file_name": stored_filename,
@@ -49,7 +49,7 @@ async def upload_resume(
     }
 
 @router.post("/extract-text", response_model=ResumeExtractResponse)
-async def extract_resume_text(
+def extract_resume_text(
     file: UploadFile = File(...)
 ):
     """Executes PyMuPDF (fitz) text layout parsing, extracting full text and detected entities."""
@@ -59,13 +59,13 @@ async def extract_resume_text(
             detail="Only PDF documents are supported for text extraction."
         )
 
-    content = await file.read()
+    content = file.file.read() if hasattr(file, "file") and hasattr(file.file, "read") else file.read()
     temp_filename = f"temp_{uuid.uuid4()}.pdf"
     temp_path = os.path.join(settings.UPLOAD_DIR, temp_filename)
 
     try:
-        async with aiofiles.open(temp_path, "wb") as out_file:
-            await out_file.write(content)
+        with open(temp_path, "wb") as out_file:
+            out_file.write(content)
 
         extracted_data = resume_parser_service.extract_text_from_pdf(temp_path)
 
